@@ -34,7 +34,44 @@ def build_parser() -> argparse.ArgumentParser:
     note.add_argument("package", help="пакет приложения, например kz.kaspi.mobile")
     note.add_argument("text", help="что нужно помнить при работе с этим приложением")
     sub.add_parser("notes", help="показать карточки базы знаний")
+    bench = sub.add_parser("bench", help="замер KPI на наборе сценариев (tests/scenarios/scenarios.yaml)")
+    bench.add_argument("--list", action="store_true", help="показать сценарии и выйти")
+    bench.add_argument("--only", help="id сценариев через запятую")
+    bench.add_argument("--include-personal", action="store_true", help="сценарии, читающие личные данные (чаты)")
+    bench.add_argument("--include-payment", action="store_true", help="сценарии с остановкой на оплате (нужны входы в аккаунты)")
+    bench.add_argument("--model", help="модель (по умолчанию LLM_MODEL из .env)")
+    bench.add_argument("--serial", help="серийный номер устройства")
+    bench.add_argument("--steps", type=int, default=30, help="максимум шагов на сценарий")
+    bench.add_argument("--yes", action="store_true", help="запустить без вопроса (иначе только план и верхняя оценка стоимости)")
     return p
+
+
+def _bench(args: argparse.Namespace, settings) -> int:
+    from agent import scenarios as sc
+
+    everything = sc.load_scenarios()
+    only = [x.strip() for x in args.only.split(",")] if args.only else None
+    chosen = sc.select(everything, only, args.include_personal, args.include_payment)
+    if args.list:
+        for s in everything:
+            flags = f" [{', '.join(s.flags)}]" if s.flags else ""
+            skipped = "" if s in chosen else "  (пропущен: нужен флаг)"
+            print(f"{s.id:18} {s.kind:8} {s.app:12}{flags}{skipped}")
+        return 0
+    if not chosen:
+        print("Нет сценариев для запуска (проверьте --only и флаги).")
+        return 1
+    worst = len(chosen) * settings.max_cost_usd
+    print(f"Сценариев: {len(chosen)}, модель {settings.model}; верхняя оценка стоимости ${worst:.2f} "
+          f"(лимит ${settings.max_cost_usd:g} и {settings.max_seconds:g} с на сценарий).")
+    if not args.yes:
+        print("Это план. Для запуска на телефоне добавьте --yes.")
+        return 0
+    results = asyncio.run(sc.run_all(chosen, settings, steps=args.steps))
+    summary = sc.summarize(results)
+    path = sc.save(settings.model, results, summary)
+    print(f"Успех {summary['passed']}/{summary['total']}, потрачено ${summary['cost_total_usd']}. Отчёт: {path}")
+    return 0 if summary["passed"] == summary["total"] else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,6 +92,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings = load_settings(args.model, args.serial)
+
+    if args.cmd == "bench":
+        return _bench(args, settings)
 
     if args.dry_run:
         allow = Allowlist.from_yaml()

@@ -179,3 +179,28 @@ def _scan(tree: Any, x: int, y: int, matcher: Callable[[str], Category | None]) 
             if category is not None:
                 return category, text.strip()
     return None
+
+
+def texts_at(tree: Any, x: int, y: int) -> list[str]:
+    """Тексты элемента под точкой (те же, что проверяет find_risky): вход для второго слоя защиты."""
+    seen: list[str] = []
+
+    def collect(text: str) -> None:
+        seen.append(text.strip())
+        return None
+
+    _scan(tree, x, y, collect)  # type: ignore[arg-type]
+    return [t for t in dict.fromkeys(seen) if t]
+
+
+def screen_texts(tree: Any, limit: int = 40, max_chars: int = 1200) -> str:
+    """Короткая сводка видимых текстов экрана (контекст для классификатора)."""
+    if isinstance(tree, dict) and "a11y_tree" in tree:
+        tree = tree["a11y_tree"]
+    roots = tree if isinstance(tree, list) else [tree]
+    out: list[str] = []
+    for root in roots:
+        if isinstance(root, dict):
+            for node, _ in _walk(root):
+                out.extend(t.strip() for t in _own_texts(node) if t and t.strip())
+    return " | ".join(dict.fromkeys(out[:limit * 3]).keys())[:max_chars]

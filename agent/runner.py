@@ -6,13 +6,14 @@ import asyncio
 import time
 
 from agent.config import ROOT, Settings
-from agent.knowledge import with_knowledge
+from agent.knowledge import needs_vision, with_knowledge
 from agent.llm import build_llm
 from agent.pricing import price_per_million
 from agent.telemetry import RunReport
 from security.allowlist import Allowlist
 from security.approval import ApprovalSession
 from security.audit import AuditLog
+from security.decider_guard import DeciderGuard
 from security.guarded_driver import BudgetExceeded, GuardedDriver, TaskTimeout
 from security.payment_guard import PaymentApprovalRequired
 
@@ -44,6 +45,7 @@ async def run_task(
     from mobilerun.tools.driver import AndroidDriver
 
     limit = settings.max_cost_usd if max_cost is None else max_cost
+    vision = vision or needs_vision(task)  # 2ГИС и подобные: текст виден только на скриншоте
     price_in, price_out, price_source = price_per_million(settings)
 
     audit = AuditLog()
@@ -58,7 +60,11 @@ async def run_task(
     try:
         inner = AndroidDriver(serial=settings.serial)
         await inner.connect()
-        guarded = GuardedDriver(inner, Allowlist.from_yaml(), audit)
+        decider = (
+            DeciderGuard(settings.api_key, settings.decider_model, settings.decider_threshold)
+            if settings.decider_model else None
+        )
+        guarded = GuardedDriver(inner, Allowlist.from_yaml(), audit, decider=decider)
 
         llm = build_llm(settings)
         tracker = track_usage(llm)

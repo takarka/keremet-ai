@@ -84,3 +84,11 @@ def test_new_package_gets_alias_and_is_found(tmp_path):
     aliases.write_text(json.dumps({"com.wolt.android": ["wolt"]}), encoding="utf-8")
     text, used = cards_for_task("Закажи в Wolt кофе", tmp_path, aliases)
     assert used == ["com.wolt.android"] and "Корзина" in text
+
+
+def test_dgis_task_needs_vision_but_kaspi_does_not():
+    from agent.knowledge import needs_vision
+
+    assert needs_vision("Открой 2ГИС и найди кафе")
+    assert not needs_vision("Открой Kaspi и найди билеты")
+    assert not needs_vision("Открой Telegram")

@@ -23,6 +23,8 @@ class Settings:
     price_out: float
     max_cost_usd: float  # жёсткий лимит стоимости одной задачи, $ (0 = без лимита)
     max_seconds: float  # лимит времени одной задачи, с (0 = без лимита)
+    decider_model: str = ""  # decision-модель второго слоя защиты (пусто = выключен)
+    decider_threshold: float = 0.5
 
     def masked_key(self) -> str:
         return f"…{self.api_key[-4:]}" if len(self.api_key) > 8 else "(не задан)"
@@ -38,4 +40,6 @@ def load_settings(model: str | None = None, serial: str | None = None) -> Settin
         price_out=float(os.environ.get("LLM_PRICE_OUT_PER_M", "15.0")),
         max_cost_usd=float(os.environ.get("MAX_COST_USD", "0.25")),
         max_seconds=float(os.environ.get("MAX_SECONDS", "300")),
+        decider_model=os.environ.get("DECIDER_MODEL", "").strip(),
+        decider_threshold=float(os.environ.get("DECIDER_THRESHOLD", "0.5")),
     )

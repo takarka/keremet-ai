@@ -12,7 +12,7 @@ from typing import Any, Optional
 from security.allowlist import Allowlist
 from security.approval import Category
 from security.audit import AuditLog
-from security.payment_guard import PaymentApprovalRequired, find_risky
+from security.payment_guard import PaymentApprovalRequired, find_risky, screen_texts, texts_at
 
 
 class TaskAborted(Exception):
@@ -52,7 +52,9 @@ class GuardedDriver:
         fail_closed: bool = True,
         policy: frozenset[Category] = DEFAULT_POLICY,
         secrets: Any = None,
+        decider: Any = None,
     ) -> None:
+        self.decider = decider  # DeciderGuard | None: второй слой, только добавляет остановки
         self.inner = inner
         self.policy = policy
         self.secrets = secrets  # SecretStore | None: подставляет {{secret:name}} только здесь, в LLM не уходит
@@ -128,6 +130,7 @@ class GuardedDriver:
     async def tap(self, x: int, y: int) -> None:
         self._ensure_not_halted()
         self._track("tap", x, y)
+        tree = None
         try:
             tree = await self.get_ui_tree()
             risky = find_risky(tree, x, y, self.policy)
@@ -138,8 +141,22 @@ class GuardedDriver:
             risky = None
         if risky:
             await self._halt(risky[0], risky[1], x, y)
+        if self.decider is not None and tree is not None:
+            await self._decider_check(tree, x, y)
         self.audit.log("tap", x=x, y=y)
         await self.inner.tap(x, y)
+
+    async def _decider_check(self, tree: Any, x: int, y: int) -> None:
+        """Вторая линия: сбой модели не блокирует (решает regex), срабатывание — останавливает."""
+        try:
+            hit = await self.decider.check(texts_at(tree, x, y), screen_texts(tree), self.policy)
+        except Exception as exc:  # noqa: BLE001
+            self.audit.log("decider_error", error=repr(exc), x=x, y=y)
+            return
+        if hit:
+            category, label, prob = hit
+            self.audit.log("decider_stop", category=category.value, label=label, probability=round(prob, 3))
+            await self._halt(category, label, x, y)
 
     async def get_ui_tree(self) -> Any:
         """Дерево экрана; если сервис доступности Portal убит системой (MIUI), оживляем его и повторяем."""

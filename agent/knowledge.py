@@ -84,6 +84,14 @@ def packages_for_task(task: str, aliases_path: Path = ALIASES_PATH) -> list[str]
     return found
 
 
+# Приложения, у которых нужное содержимое (например, адрес в 2ГИС) не попадает в дерево доступности.
+VISION_PACKAGES = frozenset({"ru.dublgis.dgismobile"})
+
+
+def needs_vision(task: str, aliases_path: Path = ALIASES_PATH) -> bool:
+    return bool(VISION_PACKAGES & set(packages_for_task(task, aliases_path)))
+
+
 def cards_for_task(task: str, cards_dir: Path = CARDS_DIR, aliases_path: Path = ALIASES_PATH) -> tuple[str, list[str]]:
     """(текст со справкой по упомянутым приложениям, список пакетов). Пустой текст, если карточек нет."""
     mapping = _mapping(cards_dir)

@@ -31,9 +31,11 @@ def _fetch(base_url: str) -> dict:
     for m in resp.json()["data"]:
         p = m.get("pricing") or {}
         try:
-            prices[m["id"]] = [float(p["prompt"]) * 1e6, float(p["completion"]) * 1e6]
+            pin, pout = float(p["prompt"]) * 1e6, float(p["completion"]) * 1e6
         except (KeyError, TypeError, ValueError):
             continue
+        if pin >= 0 and pout >= 0:  # у роутеров цена -1 (переменная): такие модели не кэшируем
+            prices[m["id"]] = [pin, pout]
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     CACHE.write_text(json.dumps({"fetched_at": time.time(), "prices": prices}), encoding="utf-8")
     return prices
@@ -47,7 +49,7 @@ def price_per_million(settings: Settings) -> tuple[float, float, str]:
             prices = _fetch(settings.base_url)
         except Exception:  # noqa: BLE001 — сеть недоступна: используем значения из .env
             prices = {}
-    if settings.model in prices:
+    if settings.model in prices and min(prices[settings.model]) >= 0:
         pin, pout = prices[settings.model]
         return pin, pout, "openrouter"
     return settings.price_in, settings.price_out, "env"

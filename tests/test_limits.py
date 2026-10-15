@@ -117,6 +117,14 @@ def test_price_from_cache(tmp_path, monkeypatch):
     assert pricing.price_per_million(settings()) == (0.3, 2.5, "openrouter")
 
 
+def test_router_variable_price_falls_back_to_env(tmp_path, monkeypatch):
+    cache = tmp_path / "pricing.json"
+    cache.write_text(json.dumps({"fetched_at": time.time(), "prices": {"vendor/model": [-1e6, -1e6]}}), encoding="utf-8")
+    monkeypatch.setattr(pricing, "CACHE", cache)
+    monkeypatch.setattr(pricing, "_fetch", lambda _: {})
+    assert pricing.price_per_million(settings()) == (3.0, 15.0, "env")
+
+
 def test_price_falls_back_to_env_when_offline(tmp_path, monkeypatch):
     monkeypatch.setattr(pricing, "CACHE", tmp_path / "none.json")
 
