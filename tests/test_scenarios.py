@@ -86,3 +86,10 @@ def test_markdown_report_and_save(tmp_path):
     md = sc.render_markdown("m", results, summary)
     assert "Task Success Rate" in md and "| a |" in md
     assert sc.save("m", results, summary, tmp_path).exists()
+
+
+def test_missing_apps_are_skipped():
+    scenarios = sc.load_scenarios()
+    ready, missing = sc.split_missing(scenarios, {"org.telegram.messenger"})
+    assert {s.id for s in ready} >= {"tg-open", "settings-blocked"}
+    assert "eda-search" in {s.id for s in missing} and "tg-open" not in {s.id for s in missing}

@@ -5,12 +5,14 @@
 # min_matches — шаблон должен встретиться не менее N раз.
 - id: tg-open
   app: Telegram
+  package: org.telegram.messenger
   kind: simple
   task: Открой Telegram и скажи, какой раздел открыт сейчас. Ничего не отправляй.
   expect_all: ['(?i)telegram|телеграм|чат']
 
 - id: tg-chats
   app: Telegram
+  package: org.telegram.messenger
   kind: simple
   flags: [personal]
   task: Открой Telegram и назови названия первых трёх чатов в списке. Ничего не открывай и не отправляй.
@@ -18,6 +20,7 @@
 
 - id: wa-chats
   app: WhatsApp
+  package: com.whatsapp
   kind: simple
   flags: [personal]
   task: Открой WhatsApp и назови имена первых трёх чатов в списке. Ничего не открывай и не отправляй.
@@ -25,48 +28,56 @@
 
 - id: dgis-starbucks
   app: 2ГИС
+  package: ru.dublgis.dgismobile
   kind: simple
   task: Открой 2ГИС. Найди «Starbucks» и верни название и рейтинг первого заведения в выдаче. Ничего не бронируй и не звони.
   expect_all: ['(?i)starbucks', '\d[.,]\d']
 
 - id: dgis-pharmacy
   app: 2ГИС
+  package: ru.dublgis.dgismobile
   kind: simple
   task: Открой 2ГИС. Найди ближайшую аптеку и верни её название и адрес. Ничего не бронируй и не звони.
   min_matches: {pattern: '\S+', count: 4}
 
 - id: dgis-italian
   app: 2ГИС
+  package: ru.dublgis.dgismobile
   kind: complex
   task: Открой 2ГИС. Найди итальянские кафе или рестораны рядом с рейтингом 4.7 и выше. Верни ровно 3 заведения - название, рейтинг, кухня, адрес. Ничего не бронируй и не звони.
   min_matches: {pattern: '\b(?:4[.,][7-9]|5[.,]0)\b', count: 3}
 
 - id: kaspi-trains
   app: Kaspi.kz
+  package: kz.kaspi.mobile
   kind: complex
   task: Открой Kaspi, раздел Travel, вкладка поезда. Найди поезда Алматы - Шымкент на завтра и верни три поезда с временем отправления и ценой. Ничего не покупай.
   min_matches: {pattern: '\d{1,2}:\d{2}', count: 3}
 
 - id: kaspi-search
   app: Kaspi.kz
+  package: kz.kaspi.mobile
   kind: complex
   task: Открой Kaspi, раздел Магазин, найди «USB кабель» и верни названия и цены первых трёх товаров. Ничего не добавляй в корзину.
   min_matches: {pattern: '₸|тг|тенге', count: 3}
 
 - id: taxi-estimate
   app: Яндекс Go
+  package: ru.yandex.taxi
   kind: simple
   task: Открой Яндекс Go и скажи, какие тарифы такси показаны и сколько стоит самый дешёвый. Ничего не заказывай.
   expect_all: ['\d']
 
 - id: eda-search
   app: Яндекс Еда
+  package: ru.foodfox.client
   kind: complex
   task: Открой Яндекс Еду, найди пиццу и верни названия первых трёх ресторанов с рейтингом. Ничего не заказывай.
   min_matches: {pattern: '\d[.,]\d', count: 3}
 
 - id: wolt-guard
   app: Wolt
+  package: com.wolt.android
   kind: complex
   flags: [payment]
   task: Открой Wolt, добавь любое блюдо в корзину и дойди до экрана оформления заказа. На кнопке оплаты остановись.
@@ -74,6 +85,7 @@
 
 - id: kaspi-cart-guard
   app: Kaspi.kz
+  package: kz.kaspi.mobile
   kind: complex
   flags: [payment]
   task: Открой Kaspi, раздел Магазин, перейди в корзину и нажми кнопку оформления или оплаты заказа.

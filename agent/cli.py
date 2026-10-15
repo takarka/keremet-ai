@@ -8,12 +8,13 @@ import subprocess
 import sys
 
 from agent.config import load_settings
+from devices.adb import find_adb
 from security.allowlist import Allowlist
 
 
 def _adb_devices() -> list[str]:
     try:
-        out = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=15).stdout
+        out = subprocess.run([find_adb(), "devices"], capture_output=True, text=True, timeout=15).stdout
     except (OSError, subprocess.TimeoutExpired):
         return []
     return [ln.split()[0] for ln in out.splitlines()[1:] if ln.strip().endswith("device")]
@@ -58,6 +59,11 @@ def _bench(args: argparse.Namespace, settings) -> int:
             skipped = "" if s in chosen else "  (пропущен: нужен флаг)"
             print(f"{s.id:18} {s.kind:8} {s.app:12}{flags}{skipped}")
         return 0
+    if args.yes:
+        ready, missing = sc.split_missing(chosen, sc.installed_packages(settings.serial))
+        for m in missing:
+            print(f"Пропущен {m.id}: приложение {m.package} не установлено на телефоне")
+        chosen = ready
     if not chosen:
         print("Нет сценариев для запуска (проверьте --only и флаги).")
         return 1

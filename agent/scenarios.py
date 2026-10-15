@@ -28,6 +28,7 @@ class Scenario:
     id: str
     task: str
     app: str = ""
+    package: str = ""  # если задан и не установлен на телефоне — сценарий пропускается
     kind: str = "simple"
     flags: list[str] = field(default_factory=list)
     expect_status: list[str] = field(default_factory=lambda: ["success"])
@@ -161,14 +162,73 @@ def save(model: str, results: list[dict[str, Any]], summary: dict[str, Any], dir
     return md
 
 
+def installed_packages(serial: str | None = None) -> set[str]:
+    import subprocess
+
+    from devices.adb import find_adb
+
+    cmd = [find_adb()] + (["-s", serial] if serial else []) + ["shell", "pm", "list", "packages"]
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout
+    return {line.split(":", 1)[1].strip() for line in out.splitlines() if line.startswith("package:")}
+
+
+def split_missing(scenarios: list[Scenario], installed: set[str]) -> tuple[list[Scenario], list[Scenario]]:
+    ready = [s for s in scenarios if not s.package or s.package in installed]
+    return ready, [s for s in scenarios if s not in ready]
+
+
+def reset_phone(serial: str | None, package: str = "") -> None:
+    """Между сценариями: закрыть приложение сценария (освободить память, снять ANR) и вернуться на домашний экран."""
+    import subprocess
+
+    from devices.adb import find_adb
+
+    base = [find_adb()] + (["-s", serial] if serial else [])
+    for args in (["shell", "am", "force-stop", package] if package else None, ["shell", "input", "keyevent", "KEYCODE_HOME"]):
+        if args:
+            try:
+                subprocess.run(base + args, capture_output=True, timeout=20)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    time.sleep(2)
+
+
+def _run_isolated(scenario: Scenario, settings, steps: int) -> RunReport:
+    """Сценарий в отдельном процессе: зависшая или отменённая задача не влияет на следующие."""
+    import subprocess
+    import sys
+
+    cmd = [sys.executable, "-u", "-m", "agent", "run", scenario.task, "--steps", str(steps),
+           "--model", settings.model]
+    if settings.serial:
+        cmd += ["--serial", settings.serial]
+    started = time.monotonic()
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              cwd=ROOT, timeout=(settings.max_seconds or 600) + 90)
+        match = re.search(r"runs/([\w-]+)/", proc.stdout)
+        if match and (ROOT / "runs" / match.group(1) / "report.json").exists():
+            data = json.loads((ROOT / "runs" / match.group(1) / "report.json").read_text(encoding="utf-8"))
+            return RunReport(**data)
+        reason = (proc.stdout + proc.stderr).strip()[-300:]
+    except subprocess.TimeoutExpired:
+        reason = "процесс не завершился за лимит + 90 с, убит"
+        return RunReport(task_id="-", task=scenario.task, model=settings.model, vision=False,
+                         status="timeout", reason=reason, duration_s=round(time.monotonic() - started, 1))
+    return RunReport(task_id="-", task=scenario.task, model=settings.model, vision=False,
+                     status="error", reason=reason, duration_s=round(time.monotonic() - started, 1))
+
+
 async def run_all(scenarios: list[Scenario], settings, steps: int = 30) -> list[dict[str, Any]]:
-    """Последовательный прогон; каждый сценарий ограничен лимитами стоимости/времени из settings."""
-    from agent.runner import run_task
+    """Последовательный прогон; каждый сценарий — отдельный процесс со своими лимитами стоимости/времени."""
+    import asyncio
 
     results = []
     for scenario in scenarios:
         print(f"▶ {scenario.id}: {scenario.task}", flush=True)
-        report = await run_task(scenario.task, settings, steps=steps)
+        await asyncio.to_thread(reset_phone, settings.serial, scenario.package)
+        report = await asyncio.to_thread(_run_isolated, scenario, settings, steps)
+        await asyncio.to_thread(reset_phone, settings.serial, scenario.package)
         passed, why = evaluate(scenario, report)
         print(f"  {'✅' if passed else '❌'} {report.status} · {report.duration_s} с · ${report.cost_usd_estimate} {why}", flush=True)
         results.append({

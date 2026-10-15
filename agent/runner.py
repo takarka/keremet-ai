@@ -10,6 +10,7 @@ from agent.knowledge import needs_vision, with_knowledge
 from agent.llm import build_llm
 from agent.pricing import price_per_million
 from agent.telemetry import RunReport
+from devices.adb import ensure_connected
 from security.allowlist import Allowlist
 from security.approval import ApprovalSession
 from security.audit import AuditLog
@@ -44,6 +45,9 @@ async def run_task(
     from mobilerun.config_manager import ConfigLoader
     from mobilerun.tools.driver import AndroidDriver
 
+    from PIL import ImageFile
+
+    ImageFile.LOAD_TRUNCATED_IMAGES = True  # Portal иногда отдаёт недокачанный PNG; не роняем задачу
     limit = settings.max_cost_usd if max_cost is None else max_cost
     vision = vision or needs_vision(task)  # 2ГИС и подобные: текст виден только на скриншоте
     price_in, price_out, price_source = price_per_million(settings)
@@ -58,6 +62,8 @@ async def run_task(
     guarded: GuardedDriver | None = None
     tracker = None
     try:
+        if not ensure_connected(settings.serial):
+            raise RuntimeError(f"Не удалось подключиться к {settings.serial} по Wi-Fi: проверьте, что телефон и компьютер в одной сети (IP мог смениться)")
         inner = AndroidDriver(serial=settings.serial)
         await inner.connect()
         decider = (

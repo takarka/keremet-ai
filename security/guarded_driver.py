@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
+from devices.adb import find_adb
 from security.allowlist import Allowlist
 from security.approval import Category
 from security.audit import AuditLog
@@ -172,7 +173,7 @@ class GuardedDriver:
 
     async def _adb(self, *args: str) -> str:
         serial = getattr(self.inner, "_serial", None)
-        cmd = ["adb"] + (["-s", serial] if serial else []) + list(args)
+        cmd = [find_adb()] + (["-s", serial] if serial else []) + list(args)
         proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=20)
         return out.decode("utf-8", "replace")
@@ -206,7 +207,7 @@ class GuardedDriver:
         except Exception as exc:
             self.audit.log("screenshot_failed", error=repr(exc))
         serial = getattr(self.inner, "_serial", None)
-        cmd = ["adb"] + (["-s", serial] if serial else []) + ["exec-out", "screencap", "-p"]
+        cmd = [find_adb()] + (["-s", serial] if serial else []) + ["exec-out", "screencap", "-p"]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL
