@@ -1,0 +1,20 @@
+# Белый список приложений, которые агент вправе открывать (P1-09).
+# Имена пакетов проверяйте командой: adb shell pm list packages | findstr <имя>
+allowed:
+  - org.telegram.messenger        # Telegram
+  - com.whatsapp                  # WhatsApp
+  - ru.dublgis.dgismobile         # 2ГИС
+  - com.wolt.android              # Wolt
+  - ru.yandex.taxi                # Яндекс Go
+  - ru.foodfox.client             # Яндекс Еда
+  - kz.kaspi.mobile               # Kaspi.kz (Travel внутри); только поиск, оплату блокирует Payment Guard
+
+# Всегда запрещено, даже если случайно попало в allowed.
+blocked:
+  - com.android.settings
+  - com.android.packageinstaller
+  - com.google.android.packageinstaller
+  - com.miui.securitycenter
+  - com.miui.packageinstaller
+  - com.android.vending
+  - com.mobilerun.portal

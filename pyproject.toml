@@ -1,0 +1,22 @@
+[project]
+name = "keremet-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=50.0.2",
+    "httpx>=0.28.1",
+    "mobilerun>=0.7.0",
+    "python-dotenv>=1.2.4",
+    "python-telegram-bot>=22.8",
+    "pyyaml>=6.0.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-p no:phoenix"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
